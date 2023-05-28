@@ -28,54 +28,48 @@ void readImages(std::string directory, std::vector<cv::Mat> &images)
     }
 }
 
-double computeReprojectionError(cv::Mat cameraMatrix, cv::Mat distCoeffs,
-                                std::vector<cv::Mat> rotationVec, std::vector<cv::Mat> translationVec,
-                                std::vector<std::vector<cv::Point2f>> imagePoints,
-                                std::vector<std::vector<cv::Point3f>> objectPoints)
-{
-    double totalError = 0;
-    int totalPoints = 0;
-    for (size_t i = 0; i < objectPoints.size(); i++)
-    {
-        std::vector<cv::Point2f> imagePoints2;
-        cv::projectPoints(objectPoints[i], rotationVec[i], translationVec[i], cameraMatrix,
-                          distCoeffs, imagePoints2);
-        double error = cv::norm(imagePoints[i], imagePoints2, cv::NORM_L2);
-        totalError += error * error;
-        totalPoints += objectPoints[i].size();
-    }
-    double meanError = std::sqrt(totalError / totalPoints);
-}
-
-void undistortImages1(cv::Mat distortedImg, cv::Mat cameraMatrix, cv::Mat distCoeffs)
+void undistortImages1(std::string filePassed, cv::Mat distortedImg, cv::Mat cameraMatrix, cv::Mat distCoeffs)
 {
     /*
-     * InitUndistortRectifyMap
+     * InitUndistortRectifyMap + Remap
      */
     cv::Mat map1, map2;
+
+    std::cout << "old camera matrix" << std::endl
+              << cameraMatrix << std::endl;
+
     cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),
-                                cameraMatrix, distortedImg.size(), CV_16SC2,
+                                cameraMatrix, cv::Size(distortedImg.cols, distortedImg.rows), CV_32FC1,
                                 map1, map2);
+
+    std::cout << "new camera matrix" << std::endl
+              << cameraMatrix << std::endl;
+
     cv::Mat undistortedImg;
     cv::remap(distortedImg, undistortedImg, map1, map2, cv::INTER_LINEAR);
 
     cv::Mat combinedImg;
     cv::hconcat(distortedImg, undistortedImg, combinedImg);
+
     cv::namedWindow("Distortion Method 1", cv::WINDOW_AUTOSIZE);
     cv::imshow("Distortion Method 1", combinedImg);
     cv::waitKey(0);
-    cv::imwrite("Distortion Method 1.jpg", combinedImg);
+    cv::imwrite("../Results/TestResult/" + filePassed, combinedImg);
 }
 
-void undistortImages2(cv::Mat distortedImg, cv::Mat cameraMatrix, cv::Mat distCoeffs)
+void undistortImages2(std::string filePassed, cv::Mat distortedImg, cv::Mat cameraMatrix, cv::Mat distCoeffs)
 {
     /*
      * Undistort
      */
-    cv::Mat out;
-    cv::undistort(distortedImg, out, cameraMatrix, distCoeffs);
+    cv::Mat undistortedImg;
+    cv::undistort(distortedImg, undistortedImg, cameraMatrix, distCoeffs);
+
+    cv::Mat combinedImg;
+    cv::hconcat(distortedImg, undistortedImg, combinedImg);
+
     cv::namedWindow("Distortion Method 2", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Distortion Method 2", out);
+    cv::imshow("Distortion Method 2", combinedImg);
     cv::waitKey(0);
-    cv::imwrite("Distortion Method 2.jpg", out);
+    cv::imwrite("../Results/TestResult/" + filePassed, combinedImg);
 }

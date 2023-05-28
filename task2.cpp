@@ -8,8 +8,7 @@
 
 // MIE
 #include "functions/utils.hpp"
-
-#define CHECKER_SIZE 21.5 // about 2,15 cm per square
+#include "functions/calibrationUtils.hpp"
 
 using std::cout;
 using std::endl;
@@ -23,61 +22,49 @@ int main(int argc, char *argv[])
     }
 
     std::string directory = argv[1]; // disrectory name
-
-    std::vector<cv::Mat> images;   // images = vector where images read are put
-    readImages(directory, images); // reads all the images and puts them into a vector of images
-
+    std::vector<cv::Mat> images;     // images = vector where images read are put
     std::vector<cv::Point2f> corners;
     std::vector<std::vector<cv::Point2f>> imagePoints;
-    cv::Size patternSize(9, 6); // interior number of corners
-    cv::Mat gray;
-    bool patternFound;
+
+    cv::Size patternSize;
+    if (directory.find("checkboard") != std::string::npos)
+    {
+        patternSize = cv::Size(6, 5); // interior number of corners
+    }
+    else
+    {
+        patternSize = cv::Size(9, 6); // interior number of corners
+    }
+
+    readImages(directory, images);
+
+    // Reading all images and putting them into a vector
 
     for (int i = 0; i < images.size(); i++)
     {
-        cv::cvtColor(images[i], gray, cv::COLOR_BGR2GRAY); // Convert the image to grayscale
-        gray.convertTo(gray, CV_8U);
-
-        patternFound = cv::findChessboardCorners(gray, patternSize, corners,
-                                                 cv::CALIB_CB_ADAPTIVE_THRESH + cv::CALIB_CB_NORMALIZE_IMAGE + cv::CALIB_CB_FAST_CHECK);
-
-        if (patternFound)
-        {
-            cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1),
-                         cv::TermCriteria(cv::TermCriteria::Type::EPS + cv::TermCriteria::Type::MAX_ITER, 30, 0.1));
-        }
-
-        cv::drawChessboardCorners(images[i], patternSize, cv::Mat(corners), patternFound);
-
-        // cv::imshow(std::to_string(i), images[i]);
-        // cv::waitKey();
-        std::string fileName = "../Results/result" + std::to_string(i);
+        computeChessboard(images[i], patternSize, corners, imagePoints);
+        std::string fileName = "../Results/ChessboardResult/result" + std::to_string(i);
         cv::imwrite(fileName + ".jpg", images[i]);
     }
 
     cout << "width: " << patternSize.width << endl;
     cout << "height: " << patternSize.height << endl;
 
+    // Computing Object Points
     std::vector<std::vector<cv::Point3f>> objectPoints;
-    std::vector<cv::Point3f> obj;
-    for (int i = 0; i < patternSize.height; i++)
-    {
-        for (int j = 0; j < patternSize.width; j++)
-        {
-            double resJ = j * CHECKER_SIZE;
-            double resI = i * CHECKER_SIZE;
-            obj.push_back(cv::Point3f(resJ, resI, 0));
-        }
-    }
+    computeObjectPts(objectPoints, imagePoints, patternSize, corners);
 
-    imagePoints.push_back(corners);
-    objectPoints.push_back(obj);
-    objectPoints.resize(imagePoints.size(), objectPoints[0]);
+    // Print Object and Image points
+    printPoints("Image", imagePoints);
+    printPoints("Object", objectPoints);
 
+    // Calibration of the Camera
     cv::Mat cameraMatrix, distCoeffs;
     std::vector<cv::Mat> rotationVec, translationVec;
     double rms = cv::calibrateCamera(objectPoints, imagePoints, images[0].size(), cameraMatrix,
                                      distCoeffs, rotationVec, translationVec);
+
+    cout << cameraMatrix << endl;
     cout << "RMS: " << rms << endl;
 
     // Computing mean reprojection error
@@ -94,9 +81,13 @@ int main(int argc, char *argv[])
 
     if (!path.empty())
     {
+        std::size_t pos = path.find_last_of("/\\");
+        std::string fileToPass = path.substr(pos + 1);
+        std::cout << fileToPass << std::endl;
+
         cv::Mat distortedImg = cv::imread(path, cv::IMREAD_COLOR);
-        undistortImages1(distortedImg, cameraMatrix, distCoeffs);
-        undistortImages2(distortedImg, cameraMatrix, distCoeffs);
+        undistortImages1(fileToPass, distortedImg, cameraMatrix, distCoeffs);
+        undistortImages2(fileToPass, distortedImg, cameraMatrix, distCoeffs);
     }
     else
     {
