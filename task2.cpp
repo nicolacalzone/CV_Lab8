@@ -5,14 +5,11 @@
 
 // OPENCV
 #include <opencv2/opencv.hpp>
-#include <opencv2/stitching.hpp>
-#include <opencv2/xfeatures2d.hpp>
 
 // MIE
 #include "functions/utils.hpp"
 
-#define SQUARE_SIZE 21.5
-#define INTERSECTIONS 54
+#define CHECKER_SIZE 21.5 // about 2,15 cm per square
 
 using std::cout;
 using std::endl;
@@ -48,17 +45,18 @@ int main(int argc, char *argv[])
         {
             cornerSubPix(gray, corners, cv::Size(11, 11), cv::Size(-1, -1),
                          cv::TermCriteria(cv::TermCriteria::Type::EPS + cv::TermCriteria::Type::MAX_ITER, 30, 0.1));
-            imagePoints.push_back(corners);
         }
 
         cv::drawChessboardCorners(images[i], patternSize, cv::Mat(corners), patternFound);
 
         // cv::imshow(std::to_string(i), images[i]);
         // cv::waitKey();
+        std::string fileName = "../Results/result" + std::to_string(i);
+        cv::imwrite(fileName + ".jpg", images[i]);
     }
 
-    cout << "width: " << patternSize.width;
-    cout << "height: " << patternSize.height;
+    cout << "width: " << patternSize.width << endl;
+    cout << "height: " << patternSize.height << endl;
 
     std::vector<std::vector<cv::Point3f>> objectPoints;
     std::vector<cv::Point3f> obj;
@@ -66,33 +64,43 @@ int main(int argc, char *argv[])
     {
         for (int j = 0; j < patternSize.width; j++)
         {
-            double resJ = j * SQUARE_SIZE;
-            double resI = i * SQUARE_SIZE;
+            double resJ = j * CHECKER_SIZE;
+            double resI = i * CHECKER_SIZE;
             obj.push_back(cv::Point3f(resJ, resI, 0));
         }
     }
 
+    imagePoints.push_back(corners);
     objectPoints.push_back(obj);
-
     objectPoints.resize(imagePoints.size(), objectPoints[0]);
+
     cv::Mat cameraMatrix, distCoeffs;
-    std::vector<cv::Mat> rvecs, tvecs;
+    std::vector<cv::Mat> rotationVec, translationVec;
     double rms = cv::calibrateCamera(objectPoints, imagePoints, images[0].size(), cameraMatrix,
-                                     distCoeffs, rvecs, tvecs);
+                                     distCoeffs, rotationVec, translationVec);
+    cout << "RMS: " << rms << endl;
 
-    // Compute the mean reprojection error
-    double totalError = 0;
-    int totalPoints = 0;
-    for (size_t i = 0; i < objectPoints.size(); i++)
+    // Computing mean reprojection error
+    double meanError = computeReprojectionError(cameraMatrix, distCoeffs,
+                                                rotationVec, translationVec,
+                                                imagePoints, objectPoints);
+    cout << "Mean Reprojection Error: " << meanError << endl;
+
+    // Undistorting input image
+    std::cout << " ## UNDISTORT IMAGES ##" << endl
+              << "Please enter path to an image: ";
+    std::string path;
+    std::getline(std::cin, path);
+
+    if (!path.empty())
     {
-        std::vector<cv::Point2f> imagePoints2;
-        cv::projectPoints(objectPoints[i], rvecs[i], tvecs[i], cameraMatrix,
-                          distCoeffs, imagePoints2);
-        double error = cv::norm(imagePoints[i], imagePoints2, cv::NORM_L2);
-        totalError += error * error;
-        totalPoints += objectPoints[i].size();
+        cv::Mat distortedImg = cv::imread(path, cv::IMREAD_COLOR);
+        undistortImages1(distortedImg, cameraMatrix, distCoeffs);
+        undistortImages2(distortedImg, cameraMatrix, distCoeffs);
     }
-    double meanError = std::sqrt(totalError / totalPoints);
-
-    cout << "Reprojection error: " << meanError << endl;
+    else
+    {
+        std::cerr << "ERROR. Path does not exist.";
+        return -1;
+    }
 }
