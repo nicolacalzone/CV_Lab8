@@ -7,12 +7,12 @@
 
 void readImages(std::string directory, std::vector<cv::Mat> &images)
 {
-    for (int i = 1; i <= 27; i++)
+    for (int i = 1; i <= 27; i++) // change to 27 if you want to try with my camera pictures
     {
         cv::Mat image;
 
         std::string fileName = "scacchiera (" + std::to_string(i) + ")"; // orders the images
-        std::string filePath = directory + "/" + fileName + ".jpg";
+        std::string filePath = directory + "/" + fileName + ".jpg";      // change to .JPG if you want to try my camera settings
 
         if (FILE *file = fopen(filePath.c_str(), "r"))
         {
